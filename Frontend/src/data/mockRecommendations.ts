@@ -1,0 +1,48 @@
+import type { Recommendation } from '../types'
+
+export const mockRecommendations: Recommendation[] = [
+  {
+    id: 'REC-1',
+    severity: 'critical',
+    title: 'CNC-004 running 23% above its energy baseline',
+    explanation: 'Sustained load on CNC-004 has stayed above its historical baseline for 6 consecutive days. This usually indicates a tooling issue, miscalibration, or a duty-cycle change that was not reflected in the schedule.',
+    affectedMachines: ['CNC-004'],
+    estEnergySavingsPct: 14,
+    estCarbonSavingsPct: 12,
+    estAnnualCostSavingsInr: 186000,
+    action: 'Inspect spindle load and schedule a calibration check',
+  },
+  {
+    id: 'REC-2',
+    severity: 'warning',
+    title: 'Material-flow distance between CNC-002 and Press-001 is inefficient',
+    explanation: 'The routed path between CNC-002 and Press-001 crosses the Machining Bay boundary, adding avoidable conveyor travel and handling energy on every cycle.',
+    affectedMachines: ['CNC-002', 'Press-001'],
+    estEnergySavingsPct: 4,
+    estCarbonSavingsPct: 4,
+    estAnnualCostSavingsInr: 41000,
+    action: 'Re-route material path or relocate Press-001 closer to Zone 1',
+  },
+  {
+    id: 'REC-3',
+    severity: 'opportunity',
+    title: 'Reduce material handling distance',
+    explanation: 'Conveyor-003 currently sits 42m from Press-002, well beyond the layout\u2019s median handling distance. Moving it closer would shorten cycle time and reduce conveyor runtime.',
+    affectedMachines: ['CNC-002', 'Conveyor-003'],
+    estEnergySavingsPct: 6.4,
+    estCarbonSavingsPct: 5.8,
+    estAnnualCostSavingsInr: 58000,
+    action: 'Move Conveyor-003 18m closer to Press-002 in the Factory Editor',
+  },
+  {
+    id: 'REC-4',
+    severity: 'warning',
+    title: 'Welding Station 01 reporting fault state',
+    explanation: 'Weld-001 has been in a fault state for 5 hours with utilization dropping to 30%. Downstream Robot-002 and Pack-002 are running below capacity as a result.',
+    affectedMachines: ['Weld-001', 'Robot-002', 'Pack-002'],
+    estEnergySavingsPct: 0,
+    estCarbonSavingsPct: 0,
+    estAnnualCostSavingsInr: 0,
+    action: 'Dispatch maintenance to Weld-001',
+  },
+]
