@@ -1,43 +1,66 @@
-// Telemetry service abstraction. Today this reads canonical machine config
-// via factoryService and runs it through the synthetic generator; later,
-// every function here becomes a fetch() against Django:
-//
-//   getLatestTelemetry(machineId) -> GET /api/machine-telemetry/?machine=:id&latest=true
-//   getAllLatestTelemetry()       -> GET /api/machine-telemetry/latest/
-//   getTelemetryHistory(id, n)    -> GET /api/machine-telemetry/?machine=:id&limit=:n
-//
-// Components should only ever import from this file (or machineStatusApi,
-// which builds on it) — never call the generator directly.
 import type { MachineTelemetry } from '../types/telemetry'
-import * as factoryService from './factoryService'
-import { generateTelemetryFor, currentTickMinute } from '../data/mockTelemetry'
+import { apiRequest } from './api'
 
-const NETWORK_DELAY_MS = 80
+interface BackendTelemetry {
+  id: number
+  machine: number
+  timestamp: string
+  power_kw: number
+  utilization: number
+  operating_state: boolean
+  production_units: number
+  temperature_c: number
+  energy_kwh: number
+  created_at: string
+}
 
-function delay<T>(value: T, ms = NETWORK_DELAY_MS): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), ms))
+function telemetryFromApi(value: BackendTelemetry): MachineTelemetry {
+  return {
+    machineId: String(value.machine),
+    timestamp: value.timestamp,
+    powerKw: value.power_kw,
+    utilization: value.utilization,
+    operatingState: value.operating_state,
+    productionUnits: value.production_units,
+    temperatureC: value.temperature_c,
+    energyKwh: value.energy_kwh,
+  }
+}
+
+async function getAllTelemetry(): Promise<MachineTelemetry[]> {
+  const values = await apiRequest<BackendTelemetry[]>('/machine-telemetry/')
+  return values.map(telemetryFromApi)
 }
 
 export async function getAllLatestTelemetry(): Promise<MachineTelemetry[]> {
-  const machines = await factoryService.getMachines()
-  const tick = currentTickMinute()
-  return delay(machines.map((m) => generateTelemetryFor(m, tick)))
+  const telemetry = await getAllTelemetry()
+  const latest = new Map<string, MachineTelemetry>()
+
+  for (const reading of telemetry) {
+    const previous = latest.get(reading.machineId)
+    if (!previous || reading.timestamp > previous.timestamp) {
+      latest.set(reading.machineId, reading)
+    }
+  }
+
+  return [...latest.values()]
 }
 
 export async function getLatestTelemetry(machineId: string): Promise<MachineTelemetry | null> {
-  const machines = await factoryService.getMachines()
-  const machine = machines.find((m) => m.id === machineId)
-  if (!machine) return delay(null)
-  return delay(generateTelemetryFor(machine, currentTickMinute()))
+  const telemetry = await getAllTelemetry()
+  const readings = telemetry.filter((reading) => reading.machineId === machineId)
+  if (!readings.length) return null
+
+  return readings.reduce((latest, reading) => (
+    reading.timestamp > latest.timestamp ? reading : latest
+  ))
 }
 
-// Short synthetic history for sparkline-style charts — real history will
-// come from GET /api/machine-telemetry/?machine=:id&limit=:points later.
 export async function getTelemetryHistory(machineId: string, points = 12): Promise<MachineTelemetry[]> {
-  const machines = await factoryService.getMachines()
-  const machine = machines.find((m) => m.id === machineId)
-  if (!machine) return delay([])
-  const tick = currentTickMinute()
-  const history = Array.from({ length: points }, (_, i) => generateTelemetryFor(machine, tick - (points - 1 - i)))
-  return delay(history)
+  const telemetry = await getAllTelemetry()
+
+  return telemetry
+    .filter((reading) => reading.machineId === machineId)
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+    .slice(-points)
 }

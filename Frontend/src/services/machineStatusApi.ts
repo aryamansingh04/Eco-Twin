@@ -1,34 +1,37 @@
-// Mock implementation of the future GET /api/machine-status/ endpoint.
-// Aggregates the latest telemetry into the exact shape the real endpoint
-// is expected to return (see types/telemetry.ts: MachineStatusSummary),
-// so swapping this file's body for a single fetch() later requires no
-// changes anywhere it's consumed (store/useTelemetryStore.ts).
 import type { MachineStatusSummary } from '../types/telemetry'
-import * as factoryService from './factoryService'
-import * as telemetryApi from './telemetryApi'
+import { apiRequest } from './api'
+
+interface BackendMachineStatusEntry {
+  machine_id: number
+  machine_name: string
+  machine_type: string
+  status: 'ON' | 'OFF' | 'NO_DATA'
+  power_kw: number | null
+  utilization: number | null
+  production_units: number | null
+  temperature_c: number | null
+  timestamp: string | null
+}
 
 export async function getMachineStatus(): Promise<MachineStatusSummary> {
-  const [machines, telemetry] = await Promise.all([factoryService.getMachines(), telemetryApi.getAllLatestTelemetry()])
+  const values = await apiRequest<BackendMachineStatusEntry[]>('/machine-status/')
 
-  const entries = telemetry.map((t) => {
-    const machine = machines.find((m) => m.id === t.machineId)
-    return {
-      machineId: t.machineId,
-      machineName: machine?.name ?? t.machineId,
-      operatingState: t.operatingState,
-      lastSeen: t.timestamp,
-      powerKw: t.powerKw,
-      utilization: t.utilization,
-      temperatureC: t.temperatureC,
-    }
-  })
+  const entries = values.map((value) => ({
+    machineId: String(value.machine_id),
+    machineName: value.machine_name,
+    operatingState: value.status === 'ON',
+    lastSeen: value.timestamp ?? '',
+    powerKw: value.power_kw ?? 0,
+    utilization: value.utilization ?? 0,
+    temperatureC: value.temperature_c ?? 0,
+  }))
 
   return {
-    total: entries.length,
-    running: entries.filter((e) => e.operatingState).length,
-    offline: entries.filter((e) => !e.operatingState).length,
-    currentPowerKw: Math.round(telemetry.reduce((s, t) => s + t.powerKw, 0) * 10) / 10,
-    productionUnitsTotal: telemetry.reduce((s, t) => s + t.productionUnits, 0),
+    total: values.length,
+    running: values.filter((value) => value.status === 'ON').length,
+    offline: values.filter((value) => value.status === 'OFF').length,
+    currentPowerKw: values.reduce((sum, value) => sum + (value.power_kw ?? 0), 0),
+    productionUnitsTotal: values.reduce((sum, value) => sum + (value.production_units ?? 0), 0),
     entries,
   }
 }
